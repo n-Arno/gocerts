@@ -1,0 +1,55 @@
+#config:
+#  organization: "TEST"
+#  locality: "IDF"
+#  country: "FR"
+#  name: "My Test CA"
+certs:
+- cn: "infraa-000.budcca-demo.lab"
+  dns:
+  - "infraa-000.budcca-demo.lab"
+  - "infraa-000"
+  ips:
+  - "10.112.11.67"
+  - "127.0.0.1"
+- cn: "infraa-001.budcca-demo.lab"
+  dns:
+  - "infraa-001.budcca-demo.lab"
+  - "infraa-001"
+  ips:
+  - "10.112.11.94"
+  - "127.0.0.1"
+- cn: "infraa-002.budcca-demo.lab"
+  dns:
+  - "infraa-002.budcca-demo.lab"
+  - "infraa-002"
+  ips:
+  - "10.112.11.111"
+  - "127.0.0.1"
+- cn: "infraa-003.budcca-demo.lab"
+  dns:
+  - "infraa-003.budcca-demo.lab"
+  - "infraa-003"
+  ips:
+  - "10.112.11.112"
+  - "127.0.0.1"
+- cn: "infraa-004.budcca-demo.lab"
+  dns:
+  - "infraa-004.budcca-demo.lab"
+  - "infraa-004"
+  ips:
+  - "10.112.11.107"
+  - "127.0.0.1"
+- cn: "infraa-005.budcca-demo.lab"
+  dns:
+  - "infraa-005.budcca-demo.lab"
+  - "infraa-005"
+  ips:
+  - "10.112.11.108"
+  - "127.0.0.1"
+- cn: "infraa-006.budcca-demo.lab"
+  dns:
+  - "infraa-006.budcca-demo.lab"
+  - "infraa-006"
+  ips:
+  - "10.112.11.188"
+  - "127.0.0.1"
