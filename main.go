@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"software.sslmate.com/src/go-pkcs12"
 	"time"
 )
 
@@ -76,6 +77,10 @@ func bigIntHash(n *big.Int) []byte {
 
 func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 	fmt.Printf("Generating CA\n")
+	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		return nil, nil, err
+	}
 	ca := &x509.Certificate{
 		SerialNumber: big.NewInt(int64(time.Now().Year())),
 		Subject: pkix.Name{
@@ -91,11 +96,15 @@ func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
-	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
 	if err != nil {
 		return nil, nil, err
 	}
-	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
+	caCert, err := x509.ParseCertificate(caBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	caPfxBytes, err := pkcs12.Encode(rand.Reader, caPrivKey, caCert, []*x509.Certificate{caCert}, pkcs12.DefaultPassword)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -117,7 +126,16 @@ func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
 	})
-	return caPrivKey, ca, nil
+	caPfx, err := os.Create("ca.pfx")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer caPfx.Close()
+	_, err = caPfx.Write(caPfxBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return caPrivKey, caCert, nil
 }
 
 func generateCert(config Config, cn string, dns []string, ips []string, ca *x509.Certificate, pk *rsa.PrivateKey) error {
@@ -133,7 +151,6 @@ func generateCert(config Config, cn string, dns []string, ips []string, ca *x509
 	if err != nil {
 		return err
 	}
-
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(int64(time.Now().Year())),
 		Subject: pkix.Name{
@@ -150,12 +167,18 @@ func generateCert(config Config, cn string, dns []string, ips []string, ca *x509
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 	}
-
 	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, pk)
 	if err != nil {
 		return err
 	}
-
+    cert, err = x509.ParseCertificate(certBytes)
+	if err != nil {
+		return err
+	}
+	certPfxBytes, err := pkcs12.Encode(rand.Reader, certPrivKey, cert, []*x509.Certificate{ca}, pkcs12.DefaultPassword)
+	if err != nil {
+		return err
+	}
 	certPEM, err := os.Create(fmt.Sprintf("%v.crt", cn))
 	if err != nil {
 		return err
@@ -175,6 +198,15 @@ func generateCert(config Config, cn string, dns []string, ips []string, ca *x509
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
 	})
+	certPfx, err := os.Create(fmt.Sprintf("%v.pfx", cn))
+	if err != nil {
+		return err
+	}
+	defer certPfx.Close()
+	_, err = certPfx.Write(certPfxBytes)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

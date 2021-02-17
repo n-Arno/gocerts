@@ -3,7 +3,7 @@ all:
 
 clean:
 	- go clean
-	- rm -f *.key *.crt gocerts-*
+	- rm -f *.key *.crt *.pfx gocerts-*
 
 cross:
 	GOOS=linux GOARCH=amd64 go build -o gocerts-linux-amd64

@@ -8,3 +8,5 @@ Based on a simple yaml file ```gocerts.yaml``` (sample included), gocerts will g
 Default subject values for certificates and CA are: ```O=SCC,L=Nanterre,C=FR```
 
 Usage: ```./gocerts``` with the ```gocerts.yaml``` file next to the binary.
+
+NB: gocerts also generate all PFX/PCKS12 files containing key and certificate chain for convenience with the default password ```changeit```
