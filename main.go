@@ -183,6 +183,7 @@ func generateCert(config Config, c Cert, ca *x509.Certificate, pk *rsa.PrivateKe
 	if err != nil {
 		return err
 	}
+	// create certificate template
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(int64(time.Now().Year())),
 		Subject: pkix.Name{
@@ -191,13 +192,15 @@ func generateCert(config Config, c Cert, ca *x509.Certificate, pk *rsa.PrivateKe
 			Locality:     []string{config.Locality},
 			CommonName:   c.Cn,
 		},
-		IPAddresses:  ipaddresses,
-		DNSNames:     c.Dns,
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().AddDate(10, 0, 0),
-		SubjectKeyId: bigIntHash(certPrivKey.N),
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		IPAddresses:           ipaddresses,
+		DNSNames:              c.Dns,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(10, 0, 0),
+		SubjectKeyId:          bigIntHash(certPrivKey.N),
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		IsCA:                  false,
+		BasicConstraintsValid: true,
 	}
 	// generate and sign certificate
 	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, pk)
