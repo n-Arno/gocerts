@@ -18,11 +18,13 @@ import (
 	"time"
 )
 
+// root structure of the yaml file
 type Gocerts struct {
 	Certs  []Cert `default:"[]" yaml:"certs"`
 	Config Config `yaml:"config"`
 }
 
+// parse default values for root structure
 func (g *Gocerts) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	defaults.Set(g)
 
@@ -34,12 +36,15 @@ func (g *Gocerts) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// cert structure of the yaml file
 type Cert struct {
-	Cn  string   `default:"" yaml:"cn"`
-	Dns []string `default:"[]" yaml:"dns"`
-	Ips []string `default:"[]" yaml:"ips"`
+	File string   `default:"" yaml:"file"`
+	Cn   string   `default:"" yaml:"cn"`
+	Dns  []string `default:"[]" yaml:"dns"`
+	Ips  []string `default:"[]" yaml:"ips"`
 }
 
+// parse default values for cert structure
 func (c *Cert) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	defaults.Set(c)
 
@@ -51,6 +56,7 @@ func (c *Cert) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// config structure of the yaml file
 type Config struct {
 	Organization string `default:"SCC" yaml:"organization"`
 	Country      string `default:"FR" yaml:"country"`
@@ -58,6 +64,7 @@ type Config struct {
 	Name         string `default:"github.com/arnoSCC/gocerts CA" yaml:"name"`
 }
 
+// parse default values for config structure
 func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	defaults.Set(c)
 
@@ -69,18 +76,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func bigIntHash(n *big.Int) []byte {
-	h := sha1.New()
-	h.Write(n.Bytes())
-	return h.Sum(nil)
-}
-
+// generate CA
 func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 	fmt.Printf("Generating CA\n")
+	// generate private key
 	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, nil, err
 	}
+	// create certificate template
 	ca := &x509.Certificate{
 		SerialNumber: big.NewInt(int64(time.Now().Year())),
 		Subject: pkix.Name{
@@ -96,18 +100,22 @@ func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
+	// generate and self-sign certificate
 	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
 	if err != nil {
 		return nil, nil, err
 	}
+	// re-read certificate (a bit overkill, ca object could be used, but better play safe)
 	caCert, err := x509.ParseCertificate(caBytes)
 	if err != nil {
 		return nil, nil, err
 	}
+	// generate pfx from key and cert
 	caPfxBytes, err := pkcs12.Encode(rand.Reader, caPrivKey, caCert, []*x509.Certificate{caCert}, pkcs12.DefaultPassword)
 	if err != nil {
 		return nil, nil, err
 	}
+	// encode and write certificate
 	caPEM, err := os.Create("ca.crt")
 	if err != nil {
 		return nil, nil, err
@@ -117,6 +125,7 @@ func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 		Type:  "CERTIFICATE",
 		Bytes: caBytes,
 	})
+	// encode and write key
 	caPrivKeyPEM, err := os.Create("ca.key")
 	if err != nil {
 		return nil, nil, err
@@ -126,6 +135,7 @@ func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
 	})
+	// write pfx
 	caPfx, err := os.Create("ca.pfx")
 	if err != nil {
 		return nil, nil, err
@@ -138,15 +148,37 @@ func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 	return caPrivKey, caCert, nil
 }
 
-func generateCert(config Config, cn string, dns []string, ips []string, ca *x509.Certificate, pk *rsa.PrivateKey) error {
-	fmt.Printf("Generating certificate for %v\n", cn)
+// generate a hash for certificate subject key id
+func bigIntHash(n *big.Int) []byte {
+	h := sha1.New()
+	h.Write(n.Bytes())
+	return h.Sum(nil)
+}
+
+// get first non empty string from a list
+func firstNonEmpty(l []string) string {
+	for _, s := range l {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// generate certificate
+func generateCert(config Config, c Cert, ca *x509.Certificate, pk *rsa.PrivateKey) error {
+	// filename is either provided or CN
+	fileName := firstNonEmpty([]string{c.File, c.Cn})
+	fmt.Printf("Generating certificate for %v\n", fileName)
+	// convert list of string ip to list of net.IP objects
 	ipaddresses := make([]net.IP, 0)
-	for _, ip := range ips {
+	for _, ip := range c.Ips {
 		ipa := net.ParseIP(ip)
 		if ipa != nil {
 			ipaddresses = append(ipaddresses, ipa)
 		}
 	}
+	// generate private key
 	certPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return err
@@ -157,29 +189,33 @@ func generateCert(config Config, cn string, dns []string, ips []string, ca *x509
 			Organization: []string{config.Organization},
 			Country:      []string{config.Country},
 			Locality:     []string{config.Locality},
-			CommonName:   cn,
+			CommonName:   c.Cn,
 		},
 		IPAddresses:  ipaddresses,
-		DNSNames:     dns,
+		DNSNames:     c.Dns,
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().AddDate(10, 0, 0),
 		SubjectKeyId: bigIntHash(certPrivKey.N),
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:     x509.KeyUsageDigitalSignature,
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 	}
+	// generate and sign certificate
 	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, pk)
 	if err != nil {
 		return err
 	}
-    cert, err = x509.ParseCertificate(certBytes)
+	// re-read signed certificate
+	cert, err = x509.ParseCertificate(certBytes)
 	if err != nil {
 		return err
 	}
+	// generate pfx from key and cert
 	certPfxBytes, err := pkcs12.Encode(rand.Reader, certPrivKey, cert, []*x509.Certificate{ca}, pkcs12.DefaultPassword)
 	if err != nil {
 		return err
 	}
-	certPEM, err := os.Create(fmt.Sprintf("%v.crt", cn))
+	// encode and write certificate
+	certPEM, err := os.Create(fmt.Sprintf("%v.crt", fileName))
 	if err != nil {
 		return err
 	}
@@ -188,8 +224,8 @@ func generateCert(config Config, cn string, dns []string, ips []string, ca *x509
 		Type:  "CERTIFICATE",
 		Bytes: certBytes,
 	})
-
-	certPrivKeyPEM, err := os.Create(fmt.Sprintf("%v.key", cn))
+	// encode and write key
+	certPrivKeyPEM, err := os.Create(fmt.Sprintf("%v.key", fileName))
 	if err != nil {
 		return err
 	}
@@ -198,7 +234,8 @@ func generateCert(config Config, cn string, dns []string, ips []string, ca *x509
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
 	})
-	certPfx, err := os.Create(fmt.Sprintf("%v.pfx", cn))
+	// write pfx
+	certPfx, err := os.Create(fmt.Sprintf("%v.pfx", fileName))
 	if err != nil {
 		return err
 	}
@@ -211,28 +248,33 @@ func generateCert(config Config, cn string, dns []string, ips []string, ca *x509
 }
 
 func main() {
+	// hardcoded source file name
 	certFile := "gocerts.yaml"
+	// read content of file
 	content, err := ioutil.ReadFile(certFile)
 	if err != nil {
 		fmt.Printf("ERROR: %v not readable => %v\n", certFile, err)
 		os.Exit(1)
 	}
+	// parse yaml
 	gocerts := Gocerts{}
 	err = yaml.Unmarshal([]byte(content), &gocerts)
 	if err != nil {
 		fmt.Printf("ERROR: %v not readable => %v\n", certFile, err)
 		os.Exit(1)
 	}
+	// generate ca
 	pk, ca, err := generateCa(gocerts.Config)
 	if err != nil {
 		fmt.Printf("ERROR: not able to generate CA => %v\n", err)
 		os.Exit(1)
 	}
+	// for each certificate "request" with a cn provided, generate certificate
 	for _, cert := range gocerts.Certs {
 		if cert.Cn != "" {
-			err = generateCert(gocerts.Config, cert.Cn, cert.Dns, cert.Ips, ca, pk)
+			err = generateCert(gocerts.Config, cert, ca, pk)
 			if err != nil {
-				fmt.Printf("ERROR: not able to generate certificate for %v => %v\n", cert.Cn, err)
+				fmt.Printf("ERROR: not able to generate certificate for %v => %v\n", firstNonEmpty([]string{cert.File, cert.Cn}), err)
 				os.Exit(1)
 			}
 		}
