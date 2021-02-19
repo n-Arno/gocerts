@@ -86,7 +86,7 @@ func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 	}
 	// create certificate template
 	ca := &x509.Certificate{
-		SerialNumber: big.NewInt(int64(time.Now().Year())),
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
 		Subject: pkix.Name{
 			Organization: []string{config.Organization},
 			Country:      []string{config.Country},
@@ -185,7 +185,7 @@ func generateCert(config Config, c Cert, ca *x509.Certificate, pk *rsa.PrivateKe
 	}
 	// create certificate template
 	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(int64(time.Now().Year())),
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
 		Subject: pkix.Name{
 			Organization: []string{config.Organization},
 			Country:      []string{config.Country},
