@@ -42,6 +42,7 @@ type Cert struct {
 	Cn   string   `default:"" yaml:"cn"`
 	Dns  []string `default:"[]" yaml:"dns"`
 	Ips  []string `default:"[]" yaml:"ips"`
+	Ca   bool     `default:"false" yaml:"ca"`
 }
 
 // parse default values for cert structure
@@ -184,6 +185,10 @@ func generateCert(config Config, c Cert, ca *x509.Certificate, pk *rsa.PrivateKe
 		return err
 	}
 	// create certificate template
+	keyUsage := x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
+	if c.Ca {
+		keyUsage = keyUsage | x509.KeyUsageCertSign
+	}
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().UnixNano()),
 		Subject: pkix.Name{
@@ -198,8 +203,8 @@ func generateCert(config Config, c Cert, ca *x509.Certificate, pk *rsa.PrivateKe
 		NotAfter:              time.Now().AddDate(10, 0, 0),
 		SubjectKeyId:          bigIntHash(certPrivKey.N),
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		IsCA:                  false,
+		KeyUsage:              keyUsage,
+		IsCA:                  c.Ca,
 		BasicConstraintsValid: true,
 	}
 	// generate and sign certificate

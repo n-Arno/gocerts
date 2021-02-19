@@ -70,3 +70,15 @@ certs:
   ips:
   - "10.112.11.188"
   - "127.0.0.1"
+- cn: "Vault"
+  ca: true
+  dns:
+  - "infraa-004.budcca-demo.lab"
+  - "infraa-004"
+  - "infraa-005.budcca-demo.lab"
+  - "infraa-005"
+  - "localhost"
+  ips:
+  - "10.112.11.107"
+  - "10.112.11.108"
+  - "127.0.0.1"
