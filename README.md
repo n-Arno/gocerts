@@ -10,3 +10,12 @@ Default subject values for certificates and CA are: ```O=SCC,L=Nanterre,C=FR```
 Usage: ```./gocerts``` with the ```gocerts.yaml``` file next to the binary.
 
 NB: gocerts also generate all PFX/PCKS12 files containing key and certificate chain for convenience with the default password ```changeit```
+
+v2.0
+----
+
+New in version 2.0: gocerts can now read an existing CA from a pfx file containing key and certificate to generate the certificates.
+
+Usage ```./gocerts ca.pfx```. You will be prompted for the pfx file password. Remember to use winpty if using mingw/msys bash under windows to be able to read from stdin.
+
+Classic usage still valid (just don't provide a file name as argument).

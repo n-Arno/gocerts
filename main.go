@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/creasty/defaults"
+	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/yaml.v3"
 	"io/ioutil"
 	"math/big"
@@ -149,6 +150,21 @@ func generateCa(config Config) (*rsa.PrivateKey, *x509.Certificate, error) {
 	return caPrivKey, caCert, nil
 }
 
+// read CA from pfx
+func readCa(caFile string, password string) (*rsa.PrivateKey, *x509.Certificate, error) {
+	fmt.Printf("\nReading CA\n")
+	content, err := ioutil.ReadFile(caFile)
+	if err != nil {
+		return nil, nil, err
+	}
+	p, ca, _, err := pkcs12.DecodeChain(content, password)
+	if err != nil {
+		return nil, nil, err
+	}
+	pk := p.(*rsa.PrivateKey)
+	return pk, ca, nil
+}
+
 // generate a hash for certificate subject key id
 func bigIntHash(n *big.Int) []byte {
 	h := sha1.New()
@@ -271,12 +287,33 @@ func main() {
 		fmt.Printf("ERROR: %v not readable => %v\n", certFile, err)
 		os.Exit(1)
 	}
-	// generate ca
-	pk, ca, err := generateCa(gocerts.Config)
-	if err != nil {
-		fmt.Printf("ERROR: not able to generate CA => %v\n", err)
-		os.Exit(1)
-	}
+	// CA pfx filename in arg? read or generate
+	ca, pk := func(args []string) (*x509.Certificate, *rsa.PrivateKey) {
+		if len(args) > 1 {
+			// Prompt for password
+			fmt.Printf("Enter password for %v: ", args[1])
+			bytePassword, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+			if err != nil {
+				fmt.Printf("ERROR: could not get password => %v\n", err)
+				os.Exit(1)
+			}
+			// read CA
+			pk, ca, err := readCa(args[1], string(bytePassword))
+			if err != nil {
+				fmt.Printf("ERROR: not able to read CA file => %v\n", err)
+				os.Exit(1)
+			}
+			return ca, pk
+		} else {
+			// generate ca
+			pk, ca, err := generateCa(gocerts.Config)
+			if err != nil {
+				fmt.Printf("ERROR: not able to generate CA => %v\n", err)
+				os.Exit(1)
+			}
+			return ca, pk
+		}
+	}(os.Args)
 	// for each certificate "request" with a cn provided, generate certificate
 	for _, cert := range gocerts.Certs {
 		if cert.Cn != "" {
