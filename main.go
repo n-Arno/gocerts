@@ -21,8 +21,9 @@ import (
 
 // root structure of the yaml file
 type Gocerts struct {
-	Certs  []Cert `default:"[]" yaml:"certs"`
-	Config Config `yaml:"config"`
+	Certs    []Cert   `default:"[]" yaml:"certs"`
+	Config   Config   `yaml:"config"`
+	Requests []string `default:"[]" yaml:"requests"`
 }
 
 // parse default values for root structure
@@ -163,6 +164,53 @@ func readCa(caFile string, password string) (*rsa.PrivateKey, *x509.Certificate,
 	}
 	pk := p.(*rsa.PrivateKey)
 	return pk, ca, nil
+}
+
+// read CSR from file
+func readCSR(csrFile string) (*x509.CertificateRequest, error) {
+	fmt.Printf("Reading CSR %v\n", csrFile)
+	content, err := ioutil.ReadFile(csrFile)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(content)
+	crq, err := x509.ParseCertificateRequest(block.Bytes)
+	return crq, err
+}
+
+// generate certificate from CSR
+func signCSR(request string, crq *x509.CertificateRequest, ca *x509.Certificate, pk *rsa.PrivateKey) error {
+	fmt.Printf("Generating certificate for %v\n", request)
+	// build template from CSR
+	keyUsage := x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
+	cert := &x509.Certificate{
+		SerialNumber:          big.NewInt(time.Now().UnixNano()),
+		Subject:               crq.Subject,
+		IPAddresses:           crq.IPAddresses,
+		DNSNames:              crq.DNSNames,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(10, 0, 0),
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:              keyUsage,
+		IsCA:                  false,
+		BasicConstraintsValid: true,
+	}
+	// generate and sign certificate
+	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, crq.PublicKey, pk)
+	if err != nil {
+		return err
+	}
+	// encode and write certificate
+	certPEM, err := os.Create(fmt.Sprintf("%v.crt", request))
+	if err != nil {
+		return err
+	}
+	defer certPEM.Close()
+	pem.Encode(certPEM, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certBytes,
+	})
+	return nil
 }
 
 // generate a hash for certificate subject key id
@@ -322,6 +370,19 @@ func main() {
 				fmt.Printf("ERROR: not able to generate certificate for %v => %v\n", firstNonEmpty([]string{cert.File, cert.Cn}), err)
 				os.Exit(1)
 			}
+		}
+	}
+	// for each CSR file passed, generate certificate
+	for _, request := range gocerts.Requests {
+		csr, err := readCSR(request)
+		if err != nil {
+			fmt.Printf("ERROR: not able to read CSR %v => %v\n", request, err)
+			os.Exit(1)
+		}
+		err = signCSR(request, csr, ca, pk)
+		if err != nil {
+			fmt.Printf("ERROR: not able to generate for CSR %v => %v\n", request, err)
+			os.Exit(1)
 		}
 	}
 }

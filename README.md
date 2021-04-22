@@ -19,3 +19,10 @@ New in version 2.0: gocerts can now read an existing CA from a pfx file containi
 Usage ```./gocerts ca.pfx```. You will be prompted for the pfx file password. Remember to use winpty if using mingw/msys bash under windows to be able to read from stdin.
 
 Classic usage still valid (just don't provide a file name as argument).
+
+v3.0
+----
+
+New in version 3.0: gocerts can now sign CSR provided as is. Only the certificate is returned in this case.
+
+To do this, add a ```requests``` block (optional) in ```gocerts.yaml```. 

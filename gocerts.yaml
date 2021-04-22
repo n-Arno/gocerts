@@ -1,8 +1,10 @@
-#config:
-#  organization: "TEST"
-#  locality: "IDF"
-#  country: "FR"
-#  name: "My Test CA"
+config:
+  organization: "TEST"
+  locality: "IDF"
+  country: "FR"
+  name: "My Test CA"
+requests:
+- "test.csr"
 certs:
 - cn: "infraa-000.budcca-demo.lab"
   dns:
