@@ -1,4 +1,4 @@
-module github.com/arnoSCC/gocerts
+module github.com/n-Arno/gocerts
 
 go 1.14
 
