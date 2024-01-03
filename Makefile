@@ -1,5 +1,10 @@
-all:
+all: gocerts
+
+gocerts:
 	go build
+
+test: gocerts
+	./gocerts
 
 clean:
 	- go clean
